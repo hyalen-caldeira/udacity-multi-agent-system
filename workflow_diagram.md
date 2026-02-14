@@ -1,52 +1,67 @@
 ```mermaid
 flowchart TD
     %% Entry
-    Customer["Customer Request"]
+    Customer["Customer Request\n(text + date)"]
 
     %% Orchestrator
-    Orchestrator["Orchestrator Agent\n- Analyzes customer request\n- Delegates to specialized agents\n- Composes final response"]
+    Orchestrator["Orchestrator Agent\n(manager_agent)\n- Parses customer request\n- Delegates to worker agents in order\n- Composes final customer response"]
 
     %% Specialized Agents
-    InventoryAgent["Inventory Agent\n- Checks stock levels\n- Reorders supplies when low"]
-    QuotingAgent["Quoting Agent\n- Searches historical quotes\n- Applies bulk discounts\n- Generates price quotes"]
-    SalesAgent["Sales Agent\n- Finalizes transactions\n- Checks delivery timelines\n- Records sales"]
+    InventoryAgent["Inventory Agent\n(inventory_agent)\n- Checks stock levels for all/specific items\n- Maps customer names to catalog names\n- Reorders out-of-stock items\n- Validates cash before reordering"]
+    QuotingAgent["Quoting Agent\n(quoting_agent)\n- Looks up catalog unit prices\n- Searches historical quotes\n- Calculates prices with bulk discounts\n- 5% / 10% / 15% tiers"]
+    SalesAgent["Sales Agent\n(sales_agent)\n- Generates financial reports\n- Estimates delivery dates\n- Records sale transactions\n- Verifies stock before selling"]
 
-    %% Tools
-    CheckInventory[/"check_inventory\n(get_stock_level,\nget_all_inventory)"/]
-    ReorderStock[/"reorder_stock\n(create_transaction:\nstock_orders)"/]
-    SearchQuotes[/"search_quote_history\n(search past quotes\nby keywords)"/]
-    GetDelivery[/"get_delivery_date\n(get_supplier_delivery_date)"/]
-    FulfillOrder[/"fulfill_order\n(create_transaction:\nsales)"/]
+    %% Inventory Tools
+    CheckInv[/"check_inventory\nWraps: get_all_inventory()\nget_stock_level()\nReturns: stock levels\nand unit prices"/]
+    Reorder[/"reorder_stock\nWraps: create_transaction()\nget_supplier_delivery_date()\nget_cash_balance()\nAction: places stock_orders"/]
+
+    %% Quoting Tools
+    SearchQ[/"search_quotes\nWraps: search_quote_history()\nReturns: similar past quotes\nwith amounts and explanations"/]
+    LookupPrice[/"lookup_item_price\nWraps: paper_supplies catalog\nReturns: unit price\nand category for an item"/]
+
+    %% Sales Tools
+    FinReport[/"get_financial_report\nWraps: generate_financial_report()\nReturns: cash balance,\ninventory value, top sellers"/]
+    Delivery[/"check_delivery\nWraps: get_supplier_delivery_date()\nReturns: estimated\ndelivery date"/]
+    Fulfill[/"process_sale\nWraps: create_transaction()\nget_stock_level()\nAction: records sales\nafter stock verification"/]
 
     %% Database
-    DB[("SQLite Database\nmunder_difflin.db\n- inventory\n- transactions\n- quotes\n- quote_requests")]
+    DB[("SQLite Database\nmunder_difflin.db\n\ninventory - stock and prices\ntransactions - orders and sales\nquotes - historical pricing\nquote_requests - past inquiries")]
 
-    %% Flow
+    %% Flow: Customer to Orchestrator
     Customer -->|"text request + date"| Orchestrator
 
-    Orchestrator -->|"1. Check stock\navailability"| InventoryAgent
-    Orchestrator -->|"2. Generate\nprice quote"| QuotingAgent
-    Orchestrator -->|"3. Finalize\nsale"| SalesAgent
+    %% Orchestrator to Agents (numbered sequence)
+    Orchestrator -->|"Step 1:\nCheck stock and\nreorder if needed"| InventoryAgent
+    Orchestrator -->|"Step 2:\nGenerate price\nquote with discounts"| QuotingAgent
+    Orchestrator -->|"Step 3:\nFinalize sale and\ncheck delivery"| SalesAgent
 
-    InventoryAgent --> CheckInventory
-    InventoryAgent --> ReorderStock
+    %% Agent to Tool connections
+    InventoryAgent --> CheckInv
+    InventoryAgent --> Reorder
 
-    QuotingAgent --> SearchQuotes
+    QuotingAgent --> SearchQ
+    QuotingAgent --> LookupPrice
 
-    SalesAgent --> GetDelivery
-    SalesAgent --> FulfillOrder
+    SalesAgent --> FinReport
+    SalesAgent --> Delivery
+    SalesAgent --> Fulfill
 
-    CheckInventory --> DB
-    ReorderStock --> DB
-    SearchQuotes --> DB
-    GetDelivery --> DB
-    FulfillOrder --> DB
+    %% Tools to Database
+    CheckInv --> DB
+    Reorder --> DB
+    SearchQ --> DB
+    LookupPrice -.->|"reads catalog\nin memory"| DB
+    FinReport --> DB
+    Delivery -.->|"calculates from\ndate + quantity"| DB
+    Fulfill --> DB
 
-    InventoryAgent -->|"stock status"| Orchestrator
-    QuotingAgent -->|"quoted price"| Orchestrator
-    SalesAgent -->|"order confirmation"| Orchestrator
+    %% Agent responses back to Orchestrator
+    InventoryAgent -.->|"stock status +\nreorder confirmations"| Orchestrator
+    QuotingAgent -.->|"quoted prices +\nbulk discounts applied"| Orchestrator
+    SalesAgent -.->|"sale confirmations +\ndelivery dates"| Orchestrator
 
-    Orchestrator -->|"final response"| Customer
+    %% Orchestrator back to Customer
+    Orchestrator -->|"final response:\nquote, totals, delivery,\nunfulfilled items explained"| Customer
 
     %% Styling
     style Customer fill:#4A90D9,stroke:#2C5F8A,color:#fff
@@ -55,9 +70,11 @@ flowchart TD
     style QuotingAgent fill:#8E44AD,stroke:#6C3483,color:#fff
     style SalesAgent fill:#C0392B,stroke:#922B21,color:#fff
     style DB fill:#F1C40F,stroke:#D4AC0D,color:#000
-    style CheckInventory fill:#D5F5E3,stroke:#27AE60,color:#000
-    style ReorderStock fill:#D5F5E3,stroke:#27AE60,color:#000
-    style SearchQuotes fill:#E8DAEF,stroke:#8E44AD,color:#000
-    style GetDelivery fill:#FADBD8,stroke:#C0392B,color:#000
-    style FulfillOrder fill:#FADBD8,stroke:#C0392B,color:#000
+    style CheckInv fill:#D5F5E3,stroke:#27AE60,color:#000
+    style Reorder fill:#D5F5E3,stroke:#27AE60,color:#000
+    style SearchQ fill:#E8DAEF,stroke:#8E44AD,color:#000
+    style LookupPrice fill:#E8DAEF,stroke:#8E44AD,color:#000
+    style FinReport fill:#FADBD8,stroke:#C0392B,color:#000
+    style Delivery fill:#FADBD8,stroke:#C0392B,color:#000
+    style Fulfill fill:#FADBD8,stroke:#C0392B,color:#000
 ```
