@@ -864,6 +864,24 @@ sales_agent = ToolCallingAgent(
 manager_agent = ToolCallingAgent(
     tools=[],
     model=model,
+    name="manager_agent",
+    description=(
+        "Orchestrator agent for Munder Difflin Paper Company. Coordinates the full "
+        "order fulfillment pipeline by delegating to specialized agents in sequence.\n"
+        "WORKFLOW for each customer request:\n"
+        "1) Call inventory_agent — pass the customer's requested items and the request date. "
+        "It will check stock levels, map customer item names to exact catalog names, "
+        "and reorder any out-of-stock items.\n"
+        "2) Call quoting_agent — pass the confirmed item names and quantities from the "
+        "inventory agent's response. It will look up unit prices, apply bulk discounts, "
+        "and return a detailed price quote.\n"
+        "3) Call sales_agent — pass the quoted items with their discounted prices and the "
+        "request date. It will process each sale, check delivery dates, and confirm the transactions.\n"
+        "4) Compile a final response to the customer including: items fulfilled, pricing breakdown, "
+        "delivery estimate, and any items that could not be fulfilled with an explanation.\n"
+        "IMPORTANT: Always pass the request date to each agent. If an agent reports an item "
+        "cannot be fulfilled, exclude it from subsequent steps but include it in the final response."
+    ),
     managed_agents=[inventory_agent, quoting_agent, sales_agent],
     max_steps=18,
 )
